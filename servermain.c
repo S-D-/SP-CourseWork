@@ -1,5 +1,5 @@
 #include <stdio.h>
-#include "networking/server.h"
+#include "server/server.h"
 #include <glib.h>
 #include <gio/gio.h>
 #include <stdlib.h>

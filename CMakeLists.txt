@@ -24,6 +24,7 @@ include_directories(${GIO_PKG_INCLUDE_DIRS})
 
 #add_executable(${PROJECT_NAME} ${SRC_LIST})
 add_subdirectory(networking)
+add_subdirectory(server)
 add_subdirectory(utils)
 
 if(UNIX)
@@ -33,11 +34,11 @@ elseif(WIN32)
 endif()
 
 message(${SRC_LIST})
-SET(servername server)
+SET(servername SPServer)
 add_executable(${servername} servermain.c)
-target_link_libraries(${servername} LINK_PUBLIC ${GLIB_PKG_LIBRARIES} ${GIO_PKG_LIBRARIES} networking utils)
+target_link_libraries(${servername} LINK_PUBLIC ${GLIB_PKG_LIBRARIES} ${GIO_PKG_LIBRARIES} server networking )
 
-SET(clientname client)
+SET(clientname SPClient)
 add_executable(${clientname} clientmain.c)
 target_link_libraries(${clientname} LINK_PUBLIC ${GLIB_PKG_LIBRARIES} ${GIO_PKG_LIBRARIES} networking utils)
 

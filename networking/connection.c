@@ -62,6 +62,9 @@ char* connection_read_message(Connection* connection, size_t* readSize)
                             &bytesRead,
                             NULL,
                             NULL);
+    if (!bytesRead) {
+        return NULL;
+    }
     size_t resTotalSize = 0;
     gchar* message = NULL;
     while (msgSize >= 255) {
