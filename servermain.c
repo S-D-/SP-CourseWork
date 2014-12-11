@@ -29,6 +29,8 @@ void onInterupt(int sig) {
 
 int main(void)
 {
+    printf("HELLO!!!\n");
+    g_type_init();
 #ifdef __WIN32__
     if (!SetConsoleCtrlHandler(onInterupt, TRUE)) {
         printf("\nERROR: Could not set control handler"); 

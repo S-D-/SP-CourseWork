@@ -35,9 +35,9 @@ endif()
 message(${SRC_LIST})
 SET(servername server)
 add_executable(${servername} servermain.c)
-target_link_libraries(${servername} LINK_PUBLIC ${GLIB_PKG_LIBRARIES} ${GIO_PKG_LIBRARIES} networking utils)
+target_link_libraries(${servername} LINK_PUBLIC networking utils ${GLIB_PKG_LIBRARIES} ${GIO_PKG_LIBRARIES})
 
 SET(clientname client)
 add_executable(${clientname} clientmain.c)
-target_link_libraries(${clientname} LINK_PUBLIC ${GLIB_PKG_LIBRARIES} ${GIO_PKG_LIBRARIES} networking utils)
+target_link_libraries(${clientname} LINK_PUBLIC networking utils ${GLIB_PKG_LIBRARIES} ${GIO_PKG_LIBRARIES} )
 
