@@ -1,2 +1,7 @@
+if(UNIX)
+  add_definitions(-D__UNIX__)
+elseif(WIN32)
+  add_definitions(-D__WIN32__)
+endif()
 add_library(server server.c)
 target_include_directories(server PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
