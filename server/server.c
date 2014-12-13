@@ -4,6 +4,7 @@
 #include <gio/gio.h>
 #include "../networking/connection.h"
 #include <stdlib.h>
+#include <string.h>
 
 typedef struct client {
     gint shell_stdin;
@@ -11,6 +12,7 @@ typedef struct client {
     gint shell_stderr;
     Connection* connection;
     volatile bool canceled;
+    volatile bool isShellActive;
 } Client;
 
 GIOChannel* get_g_io_channel(gint fd)
@@ -53,13 +55,20 @@ void writing_loop_fd(Client* client, gint fd)
                                      &length,
                                      NULL,
                                      &error);
+    //TODO: unbuffered reading
     if (status == G_IO_STATUS_ERROR) {
         g_error(error->message);
         return;
     }
+    int cmp = length < 7 ? -1 : memcmp(message, "SP_SERV", 7); 
+    
     while (status != G_IO_STATUS_EOF) {
-        connection_send_message(client->connection, message, length);
-        g_print("sent:%.*s", length, message);
+        if (!cmp) {
+            client->isShellActive = TRUE;
+            connection_send_message(client->connection, &message[7], length-8);
+        } else {
+            connection_send_message(client->connection, message, length);
+        }
         g_free(message);
         if (status == G_IO_STATUS_ERROR) {
             g_error(error->message);
@@ -70,14 +79,56 @@ void writing_loop_fd(Client* client, gint fd)
                                          &length,
                                          NULL,
                                          &error);
+        cmp = length < 7 ? -1 : memcmp(message, "SP_SERV", 7); 
     }
+//    connection_send_message(client->connection, "SP_SERVFinished", 15);
     g_print("read end!\n");
     g_io_channel_unref(shell_out_channel);
 }
 
+void write_to_shell_in_if_active(GIOChannel* channel,
+                                 char* message,
+                                 size_t length,
+                                 Client* client)
+{
+    int new_line_idx = -1;
+    for (int i = 0; i < length; ++i) {
+        if (message[i] == '\n') {
+            new_line_idx = i;
+            break;
+        }
+    }
+    if (new_line_idx == -1) {
+        g_print("ERROR!!!");
+        return;
+    }
+    gsize bytes_written;
+    GError* error = NULL;
+    g_io_channel_write_chars(channel, //write without newline char
+                             message,
+                             new_line_idx,
+                             &bytes_written,
+                             &error);
+    const char prompt_request[] = ";echo \"SP_SERV$(pwd)> \"\n";
+    const int prompt_req_size = sizeof(prompt_request) - 1;
+    g_io_channel_write_chars(channel,
+                             prompt_request,
+                             prompt_req_size,
+                             &bytes_written,
+                             &error);
+    client->isShellActive = FALSE;
+    if (new_line_idx != length - 1) {
+        g_io_channel_write_chars(channel, //write remainder
+                                 &message[new_line_idx+1],
+                                 length - new_line_idx - 1,
+                                 &bytes_written,
+                                 &error);
+    }
+}
+
 gpointer client_reading_loop(Client* client)
 {
-    gssize charsRead;
+    size_t charsRead;
     char* message;
     GIOChannel* shell_in_channel = get_g_io_channel(client->shell_stdin);
     gsize bytes_written;
@@ -85,15 +136,27 @@ gpointer client_reading_loop(Client* client)
     while(message = 
           connection_read_message(client->connection, &charsRead)) {
         g_print("recieved:%.*s", charsRead, message);
+#ifdef __UNIX__
+        if(client->isShellActive) {
+            write_to_shell_in_if_active(shell_in_channel,
+                                        message,
+                                        charsRead,
+                                        client);
+        } else {
+#endif
         g_io_channel_write_chars(shell_in_channel,
                                  message,
                                  charsRead,
                                  &bytes_written,
                                  &error);
+#ifdef __UNIX__
+        }
+#endif
         g_io_channel_flush(shell_in_channel, &error);
         
         free(message);
     }
+    printf("reading from client finished\n");
     g_io_channel_unref(shell_in_channel);
     return NULL;
 }
@@ -120,7 +183,7 @@ gpointer connectionHandler(gpointer connection)
     gint shell_stdin;
     gint shell_stdout;
     gint shell_stderr;
-    gchar* argv[] = {"bash", NULL};
+    gchar* argv[] = {"zsh", NULL};
     GError* error = NULL;
     gboolean success = g_spawn_async_with_pipes(".", argv, NULL, G_SPAWN_SEARCH_PATH,
                                                 NULL, NULL, NULL, &shell_stdin, &shell_stdout,
@@ -130,6 +193,7 @@ gpointer connectionHandler(gpointer connection)
         return NULL;
     }
     Client* client = client_new(shell_stdin, shell_stdout, shell_stderr, connection);
+    client->isShellActive = TRUE;
     GThread* readingThread = g_thread_new(NULL, (GThreadFunc) client_reading_loop, client);
     GThread* writingOutThread = g_thread_new(NULL, (GThreadFunc) client_writing_shell_out_loop, client);
     GThread* writingErrThread = g_thread_new(NULL, (GThreadFunc) client_writing_shell_err_loop, client);
@@ -139,6 +203,7 @@ gpointer connectionHandler(gpointer connection)
     g_thread_unref(readingThread);
     g_thread_unref(writingOutThread);
     g_thread_unref(writingErrThread);
+    g_print("Client disconnected\n");
     connection_close(connection);
     free(connection);
     free(client);

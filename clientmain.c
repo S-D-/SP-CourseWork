@@ -21,6 +21,7 @@ void writing_loop_fd(Connection* connection)
     gsize length;
     GError* error = NULL;
     GIOStatus status;
+    
     status = g_io_channel_read_line (in_channel,
                                      &message,
                                      &length,
@@ -34,7 +35,13 @@ void writing_loop_fd(Connection* connection)
                                          &length,
                                          NULL,
                                          &error);
+        if (status == G_IO_STATUS_EOF) {
+            connection_send_message(connection, "exit\n", 5);
+        }
     }
+    printf("stdin finished\n");
+    connection_close(connection);
+    printf("connection closed\n");
     g_io_channel_unref(in_channel);
 }
 
@@ -47,6 +54,10 @@ gpointer client_reading_loop(Connection* connection)
     GError* error = NULL;
     while(message = 
           connection_read_message(connection, &charsRead)) {
+//        if (!memcmp(message, "SP_SERVFinished", 15)) {
+//            free(message);
+//            break;
+//        }
         g_io_channel_write_chars(stdout_channel,
                                  message,
                                  charsRead,
@@ -99,7 +110,7 @@ int main(int argc, char *argv[])
     g_thread_join(writingOutThread);
     g_thread_unref(readingThread);
     g_thread_unref(writingOutThread);
-    connection_close(&connection);
+    //connection_close(&connection);
     g_object_unref(client);
     return 0;
 }
