@@ -22,6 +22,9 @@ endif(GIO_PKG_FOUND)
 find_path(GIO_INCLUDE_DIR NAMES gio.h PATH_SUFFIXES gio-2.0)
 include_directories(${GIO_PKG_INCLUDE_DIRS})
 
+find_package(OpenSSL REQUIRED)
+include_directories(${OPENSSL_INCLUDE_DIR})
+
 #add_executable(${PROJECT_NAME} ${SRC_LIST})
 add_subdirectory(networking)
 add_subdirectory(utils)
@@ -35,9 +38,9 @@ endif()
 message(${SRC_LIST})
 SET(servername server)
 add_executable(${servername} servermain.c)
-target_link_libraries(${servername} LINK_PUBLIC networking utils ${GLIB_PKG_LIBRARIES} ${GIO_PKG_LIBRARIES})
+target_link_libraries(${servername} LINK_PUBLIC networking utils ${OPENSSL_LIBRARIES} ${GLIB_PKG_LIBRARIES} ${GIO_PKG_LIBRARIES})
 
 SET(clientname client)
 add_executable(${clientname} clientmain.c)
-target_link_libraries(${clientname} LINK_PUBLIC networking utils ${GLIB_PKG_LIBRARIES} ${GIO_PKG_LIBRARIES} )
+target_link_libraries(${clientname} LINK_PUBLIC networking utils ${OPENSSL_LIBRARIES} ${GLIB_PKG_LIBRARIES} ${GIO_PKG_LIBRARIES} )
 
