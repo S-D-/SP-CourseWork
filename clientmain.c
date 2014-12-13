@@ -79,6 +79,7 @@ gpointer client_writing_shell_out_loop(Connection* connection)
 
 int main(int argc, char *argv[])
 { 
+    g_type_init();
     GError * error = NULL;
   
     /* create a new connection */
