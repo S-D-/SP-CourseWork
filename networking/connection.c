@@ -1,13 +1,13 @@
 #include "connection.h"
 #include <stdlib.h>
-/*#include <openssl/rsa.h>
+#include <openssl/rsa.h>
 #include <openssl/pem.h>
 #include <openssl/err.h>
 
 #define KEY_LENGTH  2048
 #define PUB_EXP     3
 #define PRINT_KEYS
-#define WRITE_TO_FILE*/
+#define WRITE_TO_FILE
 
 /**
  * Sends message prepended with 1 byte of the message size information.
@@ -19,7 +19,7 @@
  */
 void connection_send_message(Connection* connection, char* message, size_t size)
 {
-    //message = encrypt_msg(message);
+    message = encrypt_msg(message);
     GError * error = NULL;
     GOutputStream * ostream = g_io_stream_get_output_stream (G_IO_STREAM (connection->gSockConnection));
     size_t tmpSize = size;
@@ -98,7 +98,7 @@ char* connection_read_message(Connection* connection, size_t* readSize)
             NULL,
             NULL);
     *readSize = resTotalSize;
-    //message = decrypt_msg((int)msgSize, message);
+    message = decrypt_msg((int)msgSize, message);
     return message;
 }
 
@@ -107,7 +107,7 @@ void connection_close(Connection *connection)
     g_object_unref(connection->gSockConnection);
 }
 
-/*
+
 char* encrypt_msg(gchar* message){
     size_t pri_len;            // Length of private key
         size_t pub_len;            // Length of public key
@@ -171,4 +171,3 @@ char* decrypt_msg(int encrypt_len, char* encrypt){
     printf("Decrypted message: %s\n", decrypt);
     return decrypt;
 }
-/*
