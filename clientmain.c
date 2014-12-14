@@ -17,6 +17,7 @@ GIOChannel* get_g_io_channel(gint fd)
 void writing_loop_fd(Connection* connection)
 {
     GIOChannel* in_channel = get_g_io_channel(STDIN_FILENO);
+    g_io_channel_set_encoding(in_channel, "", NULL);
     gchar* message = NULL;
     gsize length;
     GError* error = NULL;
@@ -50,6 +51,7 @@ gpointer client_reading_loop(Connection* connection)
     size_t charsRead;
     char* message;
     GIOChannel* stdout_channel = get_g_io_channel(STDOUT_FILENO);
+    g_io_channel_set_encoding(stdout_channel, "", NULL);
     gsize bytes_written;
     GError* error = NULL;
     while(message = 
@@ -95,7 +97,7 @@ int main(int argc, char *argv[])
   
     /* don't forget to check for errors */
     if (error != NULL) {
-        g_error (error->message);
+        g_print (error->message);
         g_error_free (error);
     } else {
         g_print ("Connection successful!\n");

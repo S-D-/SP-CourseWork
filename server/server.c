@@ -46,6 +46,7 @@ gboolean isAthorized(GInputStream* istream)
 void writing_loop_fd(Client* client, gint fd)
 {
     GIOChannel* shell_out_channel = get_g_io_channel(fd);
+    g_io_channel_set_encoding(shell_out_channel, "", NULL);
     gchar* message = NULL;
     gsize length;
     GError* error = NULL;
@@ -57,7 +58,7 @@ void writing_loop_fd(Client* client, gint fd)
                                      &error);
     //TODO: unbuffered reading
     if (status == G_IO_STATUS_ERROR) {
-        g_error(error->message);
+        g_print(error->message);
         return;
     }
     int cmp = length < 7 ? -1 : memcmp(message, "SP_SERV", 7); 
@@ -131,6 +132,7 @@ gpointer client_reading_loop(Client* client)
     size_t charsRead;
     char* message;
     GIOChannel* shell_in_channel = get_g_io_channel(client->shell_stdin);
+    g_io_channel_set_encoding(shell_in_channel, "", NULL);
     gsize bytes_written;
     GError* error = NULL;
     while(message = 
@@ -183,7 +185,11 @@ gpointer connectionHandler(gpointer connection)
     gint shell_stdin;
     gint shell_stdout;
     gint shell_stderr;
+#ifdef __WIN32__
+    gchar* argv[] = {"cmd.exe", NULL};
+#elif __UNIX__
     gchar* argv[] = {"zsh", NULL};
+#endif
     GError* error = NULL;
     gboolean success = g_spawn_async_with_pipes(".", argv, NULL, G_SPAWN_SEARCH_PATH,
                                                 NULL, NULL, NULL, &shell_stdin, &shell_stdout,
@@ -197,6 +203,7 @@ gpointer connectionHandler(gpointer connection)
     GThread* readingThread = g_thread_new(NULL, (GThreadFunc) client_reading_loop, client);
     GThread* writingOutThread = g_thread_new(NULL, (GThreadFunc) client_writing_shell_out_loop, client);
     GThread* writingErrThread = g_thread_new(NULL, (GThreadFunc) client_writing_shell_err_loop, client);
+    g_print("threads started\n");
     g_thread_join(readingThread);
     g_thread_join(writingOutThread);
     g_thread_join(writingErrThread);
