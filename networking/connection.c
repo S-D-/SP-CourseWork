@@ -10,20 +10,21 @@
 #define PRINT_KEYS
 #define WRITE_TO_FILE
 
-char* encrypt_msg(gchar* message){
-    size_t pri_len;            // Length of private key
+char* encrypt_msg(gchar* message, Connection* conn, size_t* encrypt_len){
+        size_t pri_len;            // Length of private key
         size_t pub_len;            // Length of public key
         char   *pri_key;           // Private key
         char   *pub_key;           // Public key
-        gchar*   msg = message;  // Message to encrypt
+        char*   msg = message;    // Message to encrypt
         char   *encrypt = NULL;    // Encrypted message
-        char   *decrypt = NULL;    // Decrypted message
         char   *err;               // Buffer for any error messages
 
         // Generate key pair
-        printf("Generating RSA (%d bits) keypair...", KEY_LENGTH);
+        printf("Generating RSA (%d bits) keypair...\n", KEY_LENGTH);
         fflush(stdout);
         RSA *keypair = RSA_generate_key(KEY_LENGTH, PUB_EXP, NULL, NULL);
+        printf("KEYPAIR:%s\n", *keypair);
+        conn->keypair = keypair;
 
         // To get the C-string PEM form:
         BIO *pri = BIO_new(BIO_s_mem());
@@ -45,29 +46,37 @@ char* encrypt_msg(gchar* message){
         pub_key[pub_len] = '\0';
 
         // Encrypt the message
+        printf("RSA SIZE Keypair:%u\n",RSA_size(keypair));
         encrypt = (char*)malloc(RSA_size(keypair));
-        int encrypt_len;
         err = (char*)malloc(130);
-        if ((encrypt_len = RSA_public_encrypt(strlen(msg) + 1, (unsigned char*)msg, (unsigned char*)encrypt,
+        //int encrypt_len;
+        if ((*encrypt_len = RSA_public_encrypt(strlen(msg) + 1, (unsigned char*)msg, (unsigned char*)encrypt,
             keypair, RSA_PKCS1_OAEP_PADDING)) == -1) {
             ERR_load_crypto_strings();
             ERR_error_string(ERR_get_error(), err);
             fprintf(stderr, "Error encrypting message: %s\n", err);
+            free(encrypt);
+            free(err);
             return NULL;
         }
-
+        printf("Encrypt length:%u\n", *encrypt_len);
+        printf("Encrypt message:%u\n", *encrypt);
         return encrypt;
 }
 
-char* decrypt_msg(int encrypt_len, char* encrypt){
+char* decrypt_msg(int encrypt_len, gchar* encrypt, RSA* keypair){
     char   *decrypt = NULL;    // Decrypted message
+    char   *err = (char*)malloc(130);
     // Decrypt it
-    decrypt = (char*)malloc(encrypt_len);
+    printf("RSA SIZE Keypair:%u\n",RSA_size(keypair));
+    decrypt = malloc(RSA_size(keypair));
     if (RSA_private_decrypt(encrypt_len, (unsigned char*)encrypt, (unsigned char*)decrypt,
         keypair, RSA_PKCS1_OAEP_PADDING) == -1) {
         ERR_load_crypto_strings();
         ERR_error_string(ERR_get_error(), err);
         fprintf(stderr, "Error decrypting message: %s\n", err);
+        free(decrypt);
+        free(err);
         return NULL;
     }
     printf("Decrypted message: %s\n", decrypt);
@@ -84,7 +93,9 @@ char* decrypt_msg(int encrypt_len, char* encrypt){
  */
 void connection_send_message(Connection* connection, char* message, size_t size)
 {
-    message = encrypt_msg(message);
+    message = encrypt_msg(message, connection, &size);
+    RSA* keypair = connection->keypair;
+    printf("KEYPAIR:%s\n", *keypair);
     GError * error = NULL;
     GOutputStream * ostream = g_io_stream_get_output_stream (G_IO_STREAM (connection->gSockConnection));
     size_t tmpSize = size;
@@ -143,10 +154,10 @@ char* connection_read_message(Connection* connection, size_t* readSize)
         message = realloc(message, resTotalSize);
         g_input_stream_read_all(istream,
                                 &message[resTotalSize - 254],
-                254,
-                &bytesRead,
-                NULL,
-                NULL);
+                                254,
+                                &bytesRead,
+                                NULL,
+                                NULL);
         g_input_stream_read_all(istream,
                                 &msgSize,
                                 1,
@@ -163,7 +174,7 @@ char* connection_read_message(Connection* connection, size_t* readSize)
             NULL,
             NULL);
     *readSize = resTotalSize;
-    message = decrypt_msg((int)msgSize, message);
+    message = decrypt_msg((int)msgSize, message, connection->keypair);
     return message;
 }
 
