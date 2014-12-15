@@ -13,6 +13,7 @@ void connection_send_message(Connection* connection, char* message, size_t size)
 {
     GError * error = NULL;
     GOutputStream * ostream = g_io_stream_get_output_stream (G_IO_STREAM (connection->gSockConnection));
+    //g_io_channel_set_encoding((GIOStream*) ostream, "", NULL);
     size_t tmpSize = size;
     gsize bytesWritten;
     while (tmpSize >= 255) {
@@ -54,6 +55,7 @@ void connection_send_message(Connection* connection, char* message, size_t size)
 char* connection_read_message(Connection* connection, size_t* readSize)
 {
     GInputStream * istream = g_io_stream_get_input_stream (G_IO_STREAM(connection->gSockConnection));
+    //g_io_channel_set_encoding(istream, "", NULL);
     gsize bytesRead;
     GError* error = NULL;
     unsigned char msgSize;

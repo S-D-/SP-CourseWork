@@ -3,6 +3,8 @@
 #include <glib.h>
 #include <gio/gio.h>
 #include <stdlib.h>
+#include "utils/usersinfo.h"
+#include "utils/usersxmlparser.h"
 
 #ifdef __WIN32__
 #include <windows.h>
@@ -27,9 +29,21 @@ void onInterupt(int sig) {
 }
 #endif
 
+void print_entry(gpointer key, gpointer value, gpointer user_data)
+{
+    printf("key:%s\n",key);
+    printf(((UserInfo*)value)->name);
+    printf(((UserInfo*)value)->password);
+}
+
 int main(void)
 {
     g_type_init();
+    USERS_INFO = parse_users_info("users.xml");
+    if (USERS_INFO) {
+        g_hash_table_foreach(USERS_INFO, print_entry, NULL);
+    }
+    users_info_free(USERS_INFO);
 #ifdef __WIN32__
     if (!SetConsoleCtrlHandler(onInterupt, TRUE)) {
         printf("\nERROR: Could not set control handler"); 

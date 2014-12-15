@@ -39,8 +39,7 @@ Client* client_new(gint shell_stdin,
 }
 
 gboolean isAthorized(GInputStream* istream)
-{
-    
+{    
 }
 
 void writing_loop_fd(Client* client, gint fd)
