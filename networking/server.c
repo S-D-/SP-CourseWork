@@ -15,6 +15,7 @@ gpointer connectionHandler(gpointer connection)
     size_t msgSize;
     char* msg;
     do {
+        printf("In Do While\n");
         msg = connection_read_message(connection, &msgSize);
         printf("%.*s", msgSize, msg);
     } while(msgSize != 1 && msg[0] != '\n');
