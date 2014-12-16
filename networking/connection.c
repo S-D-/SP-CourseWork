@@ -9,7 +9,7 @@
  * @param message
  * @param size
  */
-void connection_send_message(Connection* connection, char* message, size_t size)
+void connection_send_message(Connection* connection, const char* message, size_t size)
 {
     GError * error = NULL;
     GOutputStream * ostream = g_io_stream_get_output_stream (G_IO_STREAM (connection->gSockConnection));

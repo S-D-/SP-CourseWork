@@ -5,11 +5,15 @@
 #include "../networking/connection.h"
 #include <stdlib.h>
 #include <string.h>
+#include "../utils/usersinfo.h"
 
 typedef struct client {
     gint shell_stdin;
     gint shell_stdout;
     gint shell_stderr;
+    GIOChannel* shell_in_channel;
+    GIOChannel* shell_out_channel;
+    GIOChannel* shell_err_channel;
     Connection* connection;
     volatile bool canceled;
     volatile bool isShellActive;
@@ -33,24 +37,82 @@ Client* client_new(gint shell_stdin,
     client->shell_stdin = shell_stdin;
     client->shell_stdout = shell_stdout;
     client->shell_stderr = shell_stderr;
+    GIOChannel* shell_out_channel = get_g_io_channel(shell_stdout);
+    g_io_channel_set_encoding(shell_out_channel, "", NULL);
+    client->shell_out_channel = shell_out_channel;
+    GIOChannel* shell_err_channel = get_g_io_channel(shell_stderr);
+    g_io_channel_set_encoding(shell_err_channel, "", NULL);
+    client->shell_err_channel = shell_err_channel;
+    GIOChannel* shell_in_channel = get_g_io_channel(shell_stdin);
+    g_io_channel_set_encoding(shell_in_channel, "", NULL);
+    client->shell_in_channel = shell_in_channel;
     client->connection = connection;
     client->canceled = false;
     return client;
 }
 
-gboolean isAthorized(GInputStream* istream)
-{    
+void client_free(Client* client)
+{
+    connection_close(client->connection);
+    g_io_channel_unref(client->shell_out_channel);
+    g_io_channel_unref(client->shell_err_channel);
+    g_io_channel_unref(client->shell_in_channel);
+    free(client->connection); //TODO mb g_free()
+    free(client);
 }
 
-void writing_loop_fd(Client* client, gint fd)
+gboolean isAthorized(Connection* connection)
+{    
+    size_t login_size;
+    char* login = connection_read_message(connection, &login_size);
+    if (login == NULL) {
+        connection_send_message(connection, "Authentification failed\n", 
+                                sizeof("Authentification failed\n"));
+        return FALSE;
+    }
+    size_t passwd_size;
+    char* password = connection_read_message(connection, &passwd_size);
+    if (password == NULL) {
+        connection_send_message(connection, "Authentification failed\n", 
+                                sizeof("Authentification failed\n"));
+        return FALSE;
+    }
+    /* size without '\0' */
+    login_size--;
+    passwd_size--;
+    
+    printf("login:%s\n", login);
+    printf("password:%s\n", password);
+    
+    UserInfo* user_info = g_hash_table_lookup(USERS_INFO, login);
+    if (user_info == NULL) {
+        connection_send_message(connection, "Authentification failed\n", 
+                                sizeof("Authentification failed\n"));
+        return FALSE;
+    }
+    if (user_info->passwd_size != passwd_size) {
+        connection_send_message(connection, "Authentification failed\n", 
+                                sizeof("Authentification failed\n"));
+        return FALSE;
+    }
+    if (memcmp(user_info->password, password, passwd_size)) {
+        connection_send_message(connection, "Authentification failed\n", 
+                                sizeof("Authentification failed\n"));
+        return FALSE;
+    }
+    char welcome_msg[11 + login_size];
+    snprintf(welcome_msg, sizeof(welcome_msg), "Welcome %.*s\n", login_size, login);
+    connection_send_message(connection, welcome_msg, sizeof(welcome_msg));
+    return TRUE;
+}
+
+void writing_loop_io_channel(Client* client, GIOChannel* channel)
 {
-    GIOChannel* shell_out_channel = get_g_io_channel(fd);
-    g_io_channel_set_encoding(shell_out_channel, "", NULL);
     gchar* message = NULL;
     gsize length;
     GError* error = NULL;
     GIOStatus status;
-    status = g_io_channel_read_line (shell_out_channel,
+    status = g_io_channel_read_line (channel,
                                      &message,
                                      &length,
                                      NULL,
@@ -74,7 +136,7 @@ void writing_loop_fd(Client* client, gint fd)
             g_error(error->message);
             return;
         }
-        status = g_io_channel_read_line (shell_out_channel,
+        status = g_io_channel_read_line (channel,
                                          &message,
                                          &length,
                                          NULL,
@@ -83,7 +145,7 @@ void writing_loop_fd(Client* client, gint fd)
     }
 //    connection_send_message(client->connection, "SP_SERVFinished", 15);
     g_print("read end!\n");
-    g_io_channel_unref(shell_out_channel);
+    //g_io_channel_unref(shell_out_channel);
 }
 
 void write_to_shell_in_if_active(GIOChannel* channel,
@@ -130,8 +192,6 @@ gpointer client_reading_loop(Client* client)
 {
     size_t charsRead;
     char* message;
-    GIOChannel* shell_in_channel = get_g_io_channel(client->shell_stdin);
-    g_io_channel_set_encoding(shell_in_channel, "", NULL);
     gsize bytes_written;
     GError* error = NULL;
     while(message = 
@@ -139,13 +199,13 @@ gpointer client_reading_loop(Client* client)
         g_print("recieved:%.*s", charsRead, message);
 #ifdef __UNIX__
         if(client->isShellActive) {
-            write_to_shell_in_if_active(shell_in_channel,
+            write_to_shell_in_if_active(client->shell_in_channel,
                                         message,
                                         charsRead,
                                         client);
         } else {
 #endif
-        g_io_channel_write_chars(shell_in_channel,
+        g_io_channel_write_chars(client->shell_in_channel,
                                  message,
                                  charsRead,
                                  &bytes_written,
@@ -153,24 +213,24 @@ gpointer client_reading_loop(Client* client)
 #ifdef __UNIX__
         }
 #endif
-        g_io_channel_flush(shell_in_channel, &error);
+        g_io_channel_flush(client->shell_in_channel, &error);
         
         free(message);
     }
     printf("reading from client finished\n");
-    g_io_channel_unref(shell_in_channel);
+    //g_io_channel_unref(shell_in_channel);
     return NULL;
 }
 
 gpointer client_writing_shell_out_loop(Client* client)
 {
-    writing_loop_fd(client, client->shell_stdout);
+    writing_loop_io_channel(client, client->shell_out_channel);
     return NULL;
 }
 
 gpointer client_writing_shell_err_loop(Client* client)
 {
-    writing_loop_fd(client, client->shell_stderr);
+    writing_loop_io_channel(client, client->shell_err_channel);
     return NULL;
 }
 
@@ -181,6 +241,11 @@ gpointer client_writing_shell_err_loop(Client* client)
 
 gpointer connectionHandler(gpointer connection)
 {
+    if (!isAthorized(connection)) {
+        connection_close(connection);
+        free(connection);
+        return NULL;
+    }
     gint shell_stdin;
     gint shell_stdout;
     gint shell_stderr;
@@ -210,9 +275,7 @@ gpointer connectionHandler(gpointer connection)
     g_thread_unref(writingOutThread);
     g_thread_unref(writingErrThread);
     g_print("Client disconnected\n");
-    connection_close(connection);
-    free(connection);
-    free(client);
+    client_free(client);
     return NULL;
 }
 

@@ -43,7 +43,6 @@ int main(void)
     if (USERS_INFO) {
         g_hash_table_foreach(USERS_INFO, print_entry, NULL);
     }
-    users_info_free(USERS_INFO);
 #ifdef __WIN32__
     if (!SetConsoleCtrlHandler(onInterupt, TRUE)) {
         printf("\nERROR: Could not set control handler"); 
@@ -63,6 +62,8 @@ int main(void)
     start(&nw);
     loop = g_main_loop_new(NULL, FALSE);
     g_main_loop_run(loop);
+    printf("freeing USERS_INFO...\n");
+    users_info_free(USERS_INFO);
     return 0;
 }
 

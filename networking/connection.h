@@ -7,7 +7,7 @@ typedef struct connection {
     GSocketConnection *gSockConnection;
 } Connection;
 
-void connection_send_message(Connection *connection, char* message, size_t size);
+void connection_send_message(Connection *connection, const char *message, size_t size);
 char* connection_read_message(Connection* connection, size_t *readSize);
 void connection_close(Connection* connection);
 
