@@ -1,2 +1,2 @@
 # Remote Terminal
-Simple remote terminal application. Works in Linux and Windows.
+Simple remote terminal application. Works on Linux and Windows.
